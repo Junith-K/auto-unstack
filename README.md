@@ -55,7 +55,7 @@ The app only accesses:
 
 ### From APK
 
-1. Download the latest `app-release.apk` from [Releases](https://github.com/Junith-J/auto-unstack/releases)
+1. Download the latest `app-release.apk` from [Releases](https://github.com/Junith-K/auto-unstack/releases)
 2. Enable **Unknown Sources** in Settings → Security (if needed)
 3. Install the APK on your device
 4. Open Auto Unstack and enable the service

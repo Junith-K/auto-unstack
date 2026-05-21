@@ -1,0 +1,44 @@
+# Gradle
+.gradle/
+build/
+
+# Android Studio
+.idea/
+*.iml
+*.apk
+*.aar
+local.properties
+
+# Build files
+app/build/
+build/
+
+# Kotlin
+.kotlin/
+*.kexe
+
+# Outputs
+/app/release/
+/app/build/outputs/
+
+# Android Gradle
+.gradle
+gradleBuild/
+
+# Keystore and credentials (IMPORTANT - never commit these)
+*.jks
+*.keystore
+*.p12
+*.pfx
+gradle.properties.local
+local.properties
+
+# IDE
+.vscode/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# GitHub
+.github/

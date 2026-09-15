@@ -2,7 +2,6 @@ package com.autounstack.app
 
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
-import android.graphics.Rect
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -10,6 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 class NotificationExpandService : AccessibilityService() {
     private val TAG = "NotificationExpandService"
+    private val GROUP_CHILD_COUNT_ID = "android:id/group_child_count_number"
     private var lastGlobalClickTime = 0L
     private val GLOBAL_CLICK_COOLDOWN_MS = 450L
     private lateinit var preferencesManager: PreferencesManager
@@ -81,52 +81,41 @@ class NotificationExpandService : AccessibilityService() {
             return
         }
 
-        val screenBounds = Rect()
-        root.getBoundsInScreen(screenBounds)
-        val screenWidth = screenBounds.width().takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        Log.d(TAG, "SystemUI event; scanning node tree; eventType=${event.eventType}")
 
-        Log.d(TAG, "SystemUI event; scanning node tree; eventType=${event.eventType}, screenWidth=$screenWidth")
-
-        scanNodeRecursive(root, screenWidth)
+        scanNodeRecursive(root)
     }
 
     override fun onInterrupt() {
         Log.d(TAG, "Accessibility service interrupted")
     }
 
-    private fun scanNodeRecursive(node: AccessibilityNodeInfo, screenWidth: Int) {
-        processNode(node, screenWidth)
+    private fun scanNodeRecursive(node: AccessibilityNodeInfo) {
+        processNode(node)
 
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            scanNodeRecursive(child, screenWidth)
+            scanNodeRecursive(child)
             child.recycle()
         }
     }
 
-    private fun processNode(node: AccessibilityNodeInfo, screenWidth: Int) {
+    private fun processNode(node: AccessibilityNodeInfo) {
         val text = node.text?.toString()
-        if (!isNumericBadgeText(text)) {
+        if (node.viewIdResourceName != GROUP_CHILD_COUNT_ID) {
             return
         }
 
         if (!node.isVisibleToUser) {
-            Log.d(TAG, "Skipping numeric node because it is not visible: text=$text")
+            Log.d(TAG, "Skipping hidden group count node: text=$text")
             return
         }
 
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-        if (!isNearRightSide(bounds, screenWidth)) {
-            Log.d(TAG, "Skipping numeric node because it is not near right side: text=$text bounds=$bounds")
-            return
-        }
-
-        Log.d(TAG, "Detected numeric badge node: text=$text bounds=$bounds")
+        Log.d(TAG, "Detected grouped-notification count node: text=$text")
 
         val clickableParent = findClickableParent(node)
         if (clickableParent == null) {
-            Log.d(TAG, "No clickable parent found for numeric badge: text=$text bounds=$bounds")
+            Log.d(TAG, "No clickable parent found for group count node: text=$text")
             return
         }
 
@@ -139,24 +128,6 @@ class NotificationExpandService : AccessibilityService() {
         } else {
             Log.d(TAG, "Click failed for numeric badge: text=$text")
         }
-    }
-
-    private fun isNumericBadgeText(text: String?): Boolean {
-        if (text.isNullOrBlank()) {
-            return false
-        }
-        val trimmed = text.trim()
-        val isNumeric = trimmed.matches(Regex("^[0-9]+$"))
-        Log.d(TAG, "Numeric badge text check: text=\"$trimmed\" isNumeric=$isNumeric")
-        return isNumeric
-    }
-
-    private fun isNearRightSide(bounds: Rect, screenWidth: Int): Boolean {
-        if (bounds.isEmpty) {
-            return false
-        }
-        val threshold = (screenWidth * 0.75f).toInt()
-        return bounds.right >= threshold
     }
 
     private fun findClickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {

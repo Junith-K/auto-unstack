@@ -115,7 +115,7 @@ class NotificationExpandService : AccessibilityService() {
 
         val clickableParent = findClickableParent(node)
         if (clickableParent == null) {
-            Log.d(TAG, "No clickable parent found for numeric badge: text=$text bounds=$bounds")
+            Log.d(TAG, "No clickable parent found for group count node: text=$text")
             return
         }
 

@@ -33,9 +33,6 @@ jobs:
         with:
           gradle-version: "8.6"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Extract browser-uploaded source
         run: |
           if [ -f ui-tree-capture-source.zip.b64 ]; then

@@ -1,0 +1,84 @@
+name: Build UI Tree Capture
+
+on:
+  push:
+    branches:
+      - ui-tree-capture
+    paths:
+      - "ui-tree-capture/**"
+      - "ui-tree-capture-source.zip"
+      - "ui-tree-capture-source.zip.b64"
+      - ".github/workflows/build-ui-tree-capture.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 8.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.6"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract browser-uploaded source
+        run: |
+          if [ -f ui-tree-capture-source.zip.b64 ]; then
+            base64 --decode ui-tree-capture-source.zip.b64 > /tmp/ui-tree-capture-source.zip
+            unzip -oq /tmp/ui-tree-capture-source.zip
+          elif [ -f ui-tree-capture-source.zip ]; then
+            unzip -oq ui-tree-capture-source.zip
+          fi
+          test -f ui-tree-capture/settings.gradle.kts
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Verify observer-only source
+        run: |
+          if grep -R --line-number -E "performAction|dispatchGesture" ui-tree-capture/app/src/main; then
+            echo "Observer-only rule violated"
+            exit 1
+          fi
+
+      - name: Run checks and build APK
+        run: gradle --no-daemon -p ui-tree-capture testDebugUnitTest assembleDebug
+
+      - name: Inspect APK package and permissions
+        run: |
+          APK="ui-tree-capture/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$APK" | tee ui-tree-capture-apk-info.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions "$APK" | tee -a ui-tree-capture-apk-info.txt
+          if grep -q "android.permission.INTERNET" ui-tree-capture-apk-info.txt; then
+            echo "Unexpected internet permission"
+            exit 1
+          fi
+
+      - name: Rename APK
+        run: cp ui-tree-capture/app/build/outputs/apk/debug/app-debug.apk ui-tree-capture-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-tree-capture-debug
+          path: |
+            ui-tree-capture-debug.apk
+            ui-tree-capture-apk-info.txt
+          if-no-files-found: error
+          retention-days: 7

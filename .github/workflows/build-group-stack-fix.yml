@@ -1,0 +1,81 @@
+name: Build group stack fix APK
+
+on:
+  push:
+    branches:
+      - fix/group-stack-id-detection
+    paths:
+      - "app/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/**"
+      - ".github/workflows/build-group-stack-fix.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 8.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.6"
+
+      - name: Install Android SDK packages
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Verify scoped detection configuration
+        run: |
+          SERVICE="app/src/main/java/com/autounstack/app/NotificationExpandService.kt"
+          CONFIG="app/src/main/res/xml/accessibility_service_config.xml"
+          grep -q 'android:id/group_child_count_number' "$SERVICE"
+          grep -q 'android:accessibilityFlags="flagReportViewIds"' "$CONFIG"
+          if grep -q 'isNearRightSide' "$SERVICE"; then
+            echo "Old right-side heuristic is still present"
+            exit 1
+          fi
+
+      - name: Run checks and build APK
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Inspect APK package and permissions
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$APK" | tee auto-unstack-apk-info.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions "$APK" | tee -a auto-unstack-apk-info.txt
+          if grep -q "android.permission.INTERNET" auto-unstack-apk-info.txt; then
+            echo "Unexpected internet permission"
+            exit 1
+          fi
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk auto-unstack-group-id-fix.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-unstack-group-id-fix
+          path: |
+            auto-unstack-group-id-fix.apk
+            auto-unstack-apk-info.txt
+          if-no-files-found: error
+          retention-days: 7

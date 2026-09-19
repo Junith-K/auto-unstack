@@ -7,23 +7,26 @@ Auto Unstack is a lightweight utility that monitors the notification shade and a
 ## Features
 
 - 🔄 **Automatic expansion** — Grouped notifications expand instantly when the notification shade opens
-- 🔒 **Lock-screen safe** — Does nothing while the device is locked (avoids PIN pad / lock-screen conflicts)
+- 🔒 **Optional lock-screen support** — Expand grouped notifications while the phone is locked with a separate setting
+- 📜 **Scroll-aware** — Newly visible grouped notifications are handled as you scroll
 - 🔋 **Lightweight** — Minimal battery impact with smart event filtering
 - 🛡️ **Privacy-first** — No personal data collection or network access
-- ⚙️ **Simple settings** — Single toggle to enable/disable
+- ⚙️ **Independent settings** — Enable unlocked-shade and lock-screen behavior separately
 - 📱 **Kotlin + Compose** — Modern, maintainable Android code
 
 ## How It Works
 
 Auto Unstack uses Android's AccessibilityService to:
-1. Skip all processing while the keyguard is locked
+1. Check whether the unlocked-shade or lock-screen setting applies to the current lock state
 2. Monitor the notification shade when SystemUI is the active window
-3. Detect numeric badges on grouped notifications (e.g., "2", "5", "12")
-4. Identify clickable notification containers on the right side of the screen
-5. Automatically tap once per shade open to expand grouped stacks
-6. Ignore further events until the shade is dismissed (prevents re-open loops)
+3. Find Samsung's exact grouped-notification count element (`android:id/group_child_count_number`)
+4. Tap only that element's clickable notification container
+5. On the first unlocked-shade scan, collect visible groups and expand them from bottom to top without a delay between groups
+6. After a 750 ms lock-screen wake settling period, and during later rescans, expand one visible group at a time and wait for SystemUI to update
+7. Scan newly visible notifications when the user scrolls
+8. Reset its handled-candidate list when the shade closes, the lock state changes, or the screen turns off/on
 
-The service only acts when the unlocked notification shade is active. After expanding, it waits until you close the shade before acting again.
+The service does not use message text, generic expand actions, or screen-position guesses to decide what to tap. It only uses screen bounds to order already verified groups from bottom to top. It only acts on the Samsung grouped-notification identifier and never scrolls the shade by itself.
 
 ## Accessibility Permission
 
@@ -49,10 +52,9 @@ See [Android Accessibility Service documentation](https://developer.android.com/
 - All processing happens locally on your device
 
 The app only accesses:
-- Notification UI structure (to find badges)
+- Notification UI structure (to find Samsung's grouped-notification identifier)
 - Notification shade state
-- Keyguard / lock state (to avoid acting on the lock screen)
-- Screen dimensions
+- Keyguard / lock state (to select the enabled mode)
 
 ## Installation
 
@@ -71,9 +73,9 @@ See [Build Instructions](#build-instructions) below.
 ## Usage
 
 1. **Install and open the app**
-2. **Enable the toggle** — "Enable Auto Unstack" in the app settings
+2. **Choose where it runs** — Enable "Enable Auto Unstack", "Enable Lock Screen Auto Unstack", or both
 3. **Enable Accessibility Service** — Go to Settings → Accessibility → Auto Unstack → toggle on
-4. **Pull down notification shade** — Grouped notifications will expand automatically
+4. **Open or scroll the notification shade** — Visible grouped notifications will expand automatically
 
 That's it! The service runs in the background and monitors your notification shade.
 
@@ -160,8 +162,9 @@ auto-unstack/
 
 - **Works with Samsung notifications** — Designed specifically for Samsung's grouped notification stacks
 - **Requires Accessibility Service** — Cannot function without this permission
-- **Unlocked shade only** — Does not expand stacks on the lock screen; pull down the shade after unlocking
+- **Lock-screen behavior is device-dependent** — Samsung SystemUI must expose the same grouped-notification identifier while locked
 - **Limited to notification shade** — Does not work when the shade is closed
+- **No automatic scrolling** — Scroll manually to reveal groups that are below the current viewport
 - **No root required** — Uses standard Android Accessibility APIs
 
 ## Known Issues
